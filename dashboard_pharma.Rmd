@@ -45,7 +45,7 @@ drug_price =
          drug_type = classification_for_rate_setting,
          unit_price = nadac_per_unit) %>%
   mutate(trade_name = str_replace(trade_name, "[0-9]", "_"),
-         trade_name = str_to_title(trade_name),s
+         trade_name = str_to_title(trade_name),
          otc = recode(otc, "Y" = "yes", "N" = "no"),
          otc = str_to_title(otc),
          otc = as.factor(otc)) %>% 

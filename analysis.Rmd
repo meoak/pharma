@@ -27,355 +27,22 @@ library(viridis)
 ```
 
 
-```{r tidy_drug_price, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
-# # API code
-# url = "https://data.medicaid.gov/resource/tau9-gfwr.csv"
-# drug_price =
-#   GET(url, query = list("$limit" = 9999999)) %>%
-#   content("parsed") %>%
-#   clean_names()
-
-# # CSV code
-drug_price =
-  read_csv("../data/drug_price.csv") %>%
-  clean_names()
-```
 
 
-```{r rename_split_date, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
-drug_price = 
-  drug_price %>%
-  rename(trade_name = ndc_description,
-         drug_type = classification_for_rate_setting,
-         unit_price = nadac_per_unit) %>%
-  mutate(trade_name = str_replace(trade_name, "[0-9]", "_"),
-         trade_name = str_to_title(trade_name),
-         otc = recode(otc, "Y" = "yes", "N" = "no"),
-         otc = str_to_title(otc),
-         otc = as.factor(otc)) %>% 
-  separate(trade_name, into = c("trade_name", "remove"), sep = "_") %>% 
-  separate(effective_date, into = c("year", "month", "date")) %>%
-  select(-c(date, x1, remove)) %>%
-  mutate(trade_name = trimws(trade_name, which = c("both"))) %>% 
-  separate(trade_name, into = c("trade_name", "remove"), sep = " ") %>% 
-  filter(is.na(remove)) %>%
-  select(-remove) %>% 
-  filter(pricing_unit == "GM" | pricing_unit == "EA") %>% 
-  select(trade_name, everything()) 
-```
-
-```{r, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
-new_drug_price = drug_price %>% 
-  group_by(trade_name, drug_type, otc, pricing_unit, year) %>% 
-  summarize(avg_price = mean(unit_price, na.rm = TRUE))
-
-new_drug_price
-```
-
-
-```{r load_funding, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+```{r load_data, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+final_dataset = read_csv("./data/final_dataset_20171205.csv") 
 
 final_NIH_funding = read_csv("./data/final_NIH_funding.csv") 
+
+drug_price = read_csv("../data/drug_price.csv") 
 ```
 
 
-```{r load_patents, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
-patents = read_csv("./data/patent.csv")
-patents = patents %>% 
-  clean_names() %>%
-  rename(drug_type = appl_type) %>% 
-  mutate(drug_type = recode(drug_type, "N" = "B")) %>%
-  separate(patexp, into = c("month_pat_expires", "day_pat_expires", "year_pat_expires"), sep = "/") %>%
-  separate(patent_no, into = c("patent_num", "pediatric_exclusivity_granted"), sep = "\\*")
-
-patents$pediatric_exclusivity_granted[is.na(patents$pediatric_exclusivity_granted)] = "no"
-patents$drugsub[is.na(patents$drugsub)] = "no"
-patents$drugprod[is.na(patents$drugprod)] = "no"
-patents$delist[is.na(patents$delist)] = "no"
-
-patents = patents %>%
-  mutate(pediatric_exclusivity_granted = factor(pediatric_exclusivity_granted, levels = c("no", "PED"), labels = c("No", "Yes"))) %>%
-  mutate(drug_substance_flag = factor(drugsub, levels = c("no", "Y"), labels = c("no", "yes"))) %>%
-  mutate(drug_prod_flag = factor(drugprod, levels = c("no", "Y"), labels = c("no", "yes"))) %>%
-  mutate(patent_delisted = factor(delist, levels = c("no", "Y"), labels = c("no", "yes"))) %>%
-  select(-drugsub, -drugprod, -patexpstr) %>%
-  rename(pat_use_code = patuse)
-patents
-```
-
-
-```{r load_products, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
-products = read_csv("./data/products.csv")
-products = products %>%
-  rename(drug_type = appl_type,
-         otc = type) %>% 
-  mutate(drug_type = recode(drug_type, "A" = "G", "N" = "B"),
-         otc = recode(otc, "OTC" = "yes", "RX" = "no", "DISCN" = "no")) %>%
-  separate(appdate, into = c("approval_month", "approval_day", "approval_year"), sep = "/") %>%
-  #separate(doseform, into = c("form", "release_type"), sep = ",")
-  mutate(otc = factor(otc)) %>%
-  mutate(ref_listed_drug = factor(rld)) %>%
-  mutate(ref_std = factor(rs)) %>%
-  select(-appdatestr, -rld, -rs, -dfroute)
-products
-```
-
-
-```{r tidy_exclusivity, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
-exclusivity = read_csv("./data/exclusivity.csv") %>%
-  clean_names() %>%
-  rename(drug_type = appl_type) %>% 
-  mutate(drug_type = recode(drug_type, "A" = "G", "N" = "B")) %>% 
-  separate(excldate, into = c("month_excl_expires", "date_excl_expires", "year_excl_expires"))
-exclusivity
-```
-
-
-```{r tidy_ingredients, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
-ingredient = read_csv("./data/ingredient.csv") %>%
-  clean_names() %>%
-  select(singnum, singredient, everything())
-ingredient
-```
-
-
-```{r scrape_drug_disease, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
-
-urls = paste("https://www.centerwatch.com/drug-information/fda-approved-drugs/medical-conditions/", toupper(letters), sep = "")
-
-get_drug_disease = function(url) {
-  
-  disease_data = read_html(url) %>% 
-  html_nodes(css = ".ToggleDrugCategory") %>%
-  html_text() %>% 
-  as_tibble() %>% 
-  mutate(key = value) %>% 
-  rename(disease = value)
-  
-  drug_data = read_html(url) %>% 
-  html_nodes(css = ".CategoryListSection a:nth-child(1)") %>%
-  html_text() %>% 
-  as_tibble() %>% 
-  mutate(key = value) %>% 
-  rename(drug = value)
-  
-  drug_disease_data = read_html(url) %>% 
-  html_nodes(css = "#MainColumn a:nth-child(1)") %>%
-  html_text() %>% 
-  as_tibble() %>% 
-  mutate(key = value) %>% 
-  rename(drug_disease = value)
-  
-  drug_disease_joined = left_join(drug_disease_data, drug_data, disease_data, by = "key") %>% 
-  left_join(., disease_data, by = "key") %>%
-  fill(disease) %>%
-  select(-c(drug,drug_disease))
-  
-  toremove = drug_disease_joined %>% distinct(disease) %>% pull()
-  
-  drug_disease_joined = drug_disease_joined %>% 
-  filter(!key %in% toremove) %>% 
-  rename(drug = key) %>% 
-  .[-c(1:29),]
-  
-  drug_disease_joined
-}
-
-drug_disease_data = map_df(urls, get_drug_disease) %>% 
-  mutate(disease = str_to_title(disease),
-         drug = str_to_title(drug)) %>% 
-  rename(trade_name = drug) %>%
-  mutate(trade_name = trimws(trade_name, which = c("both"))) %>% 
-  separate(trade_name, into = c("trade_name", "remove"), sep = " ") %>% 
-  select(-remove)
-
-drug_disease_data
-```
-
-
-```{r, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
-#first dataset
-chronic_diseases_1_html = read_html("https://www.medicalschemes.com/medical_schemes_pmb/chronic_disease_list.htm")
-chronic_diseases_1 = chronic_diseases_1_html %>%
-  html_nodes("td td td .maintext") %>%
-  html_text() %>%
-  as_tibble() %>%
-  rename(disease = value)
-
-#second dataset
-chronic_diseases_2_html = read_html("http://www.health24.com/Medical-schemes/PMB-and-chronic-disease/List-of-chronic-diseases-20120721")
-chronic_diseases_2 = chronic_diseases_2_html %>%
-  html_nodes("ul:nth-child(10) li , ul:nth-child(10) a") %>%
-  html_text() %>%
-  as_tibble() %>%
-  rename(disease = value)
-
-#third dataset
-chronic_diseases_3_html = read_html("https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/Chronic-Conditions/CC_Main.html")
-chronic_diseases_3 = chronic_diseases_3_html %>%
-  html_nodes("td") %>%
-  html_text() %>%
-  as_tibble() %>%
-  rename(disease = value)
-
-#final chronic disease dataset
-chronic_diseases = rbind(chronic_diseases_1, chronic_diseases_2, chronic_diseases_3) %>%
-  distinct()
-
-#recode diseases
-chronic_diseases$disease[62] = "Cancer"
-chronic_diseases$disease[67] = "High Blood Pressure"
-chronic_diseases$disease[43] = "High cholesterol"
-chronic_diseases$disease[60] = "Austism"
-chronic_diseases$disease[55] = "Arthritis"
-chronic_diseases$disease[46] = "Hypothyroidism"
-chronic_diseases$disease[38] = "Dysrhythmia"
-chronic_diseases$disease[66] = "inactive thyroid gland"
-chronic_diseases$disease[53] = "alzheimer's disease"
-chronic_diseases$disease[26] = "Dementia"
-chronic_diseases$disease[56] = "Hepatitis"
-chronic_diseases$disease[71] = "COPD"
-```
-
-
-```{r join_dataset, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
-#A: join datasets by ingredient for ingredient and products (left join)
-#products = longer dataset + ingredient
-product_ingredient = left_join(products, ingredient, by = "ingredient")
-product_ingredient
-
-#B: exclusivity and patents left join (more~less)
-patent_exclusivity = left_join(patents, exclusivity, by = c("appl_no", "product_no", "drug_type"))
-patent_exclusivity
-
-#C: join A and B left join: "Orange Book." Thursday: meet to eliminate variables (inner join: only commonalities are preserved) #eliminate drugs that do not match
-orange_book = left_join(product_ingredient, patent_exclusivity, by = c("appl_no", "product_no", "drug_type"))
-
-orange_book = orange_book %>%
-  mutate(ingredient = str_to_title(ingredient),
-         doseform = str_to_title(doseform),
-         route = str_to_title(route),
-         trade_name = str_to_title(trade_name),
-         applicant = str_to_title(applicant),
-         otc = str_to_title(otc),
-         appfull = str_to_title(appfull),
-         singredient = str_to_title(singredient),
-         strength = str_to_title(strength))
-orange_book
-
-# final goal: disease, funding, drug prices, and Orange Book
-
-# eliminate unnecessary variables from orange book dataset
-orange_book_clean = orange_book %>%
-  rename(application_no = appl_no, 
-         active_ingredient = singredient, 
-         dose_form = doseform) %>%
-  select(-c(ingredient, applicant, product_no, tecodestr, tecode, approval_day, ref_std, singnum, day_pat_expires, pat_use_code, drug_substance_flag, drug_prod_flag, exclcode, excldatestr, date_excl_expires)) %>% 
-  select(trade_name, everything()) %>% 
-  separate(dose_form, into = c("dose_form", "remove")) %>%
-  filter(is.na(remove)) %>% 
-  select(-remove) %>% 
-  filter(str_detect(dose_form, regex("Tablet", ignore_case = TRUE))) %>%
-  mutate(trade_name = trimws(trade_name, which = c("both")),
-         trade_name = str_replace_all(trade_name, ", ", "-"),
-         trade_name = str_replace_all(trade_name, " And ", "-"))
-
-# inner join of disease drug and orange book by trade_name
-final_dataset =
-  new_drug_price %>%
-  inner_join(., orange_book_clean, by = c("trade_name", "drug_type", "otc")) %>% 
-  distinct() %>% 
-  left_join(., drug_disease_data, by = "trade_name") %>% 
-  distinct() %>% 
-  mutate(disease = str_replace(disease, " And ", "_"),
-         disease = str_replace(disease, "High Blood Pressure \\(", ""),
-         disease = str_replace(disease, "Copd \\(", ""),
-         disease = str_replace(disease, "\\/Hyperactivity", ""),
-         disease = str_replace(disease, "\\)", ""),
-         disease = str_replace(disease, " Mellitus, Type 2", ""),
-         disease = str_replace(disease, " Mellitus Types I", ""),
-         disease = str_replace(disease, "Hepatitis", "Hepatitis C"),
-         disease = str_replace(disease, "Hepatitis C B", "Hepatitis B"),
-         disease = str_replace(disease, "Hepatitis C C", "Hepatitis C"),
-         disease = str_replace(disease, "Hiv/Aids", "HIV/AIDS"),
-         disease = str_replace(disease, " \\- ", "_"),
-         disease = str_replace(disease, "Migraine", "Migraines")
-         ) %>%
-  separate(disease, into = c("disease", "remove"), sep = "\\_") %>% 
-  select(-remove) %>% 
-  separate(disease, into = c("disease", "remove"), sep = "\\(") %>% 
-  select(-remove) %>% 
-  separate(disease, into = c("disease", "remove"), sep = "\\;") %>%
-  select(-remove) %>% 
-  left_join(., final_NIH_funding, by = c("disease", "year")) %>%
-  as_tibble() %>%
-  distinct() %>% 
-  mutate(disease = str_replace(disease, "Chronic Obstructive Pulmonary Disease", "Chronic Obstructive Pulmonary Disorder"),
-         disease = str_replace(disease, "Kidney Disease", "Chronic Kidney Disease"),
-         disease = str_replace(disease, "Cardiac Ischemia", "Coronary Artery Disease"),
-         disease = str_replace(disease, "Diabetes", "Diabetes Mellitus Types 1 & 2"),
-         disease = str_replace(disease, "Bipolar Disorder", "Bipolar Mood Disorder"))
-
-#joining for chronic
-#need to include breast cancer, hepatitis b, hepatitis c, lung cancer, prostate cancer bc chronic disease set does not specify
-#hepatitis
-hepatitis_chronic = final_dataset %>%
-  filter(str_detect(disease, regex("hepatitis", ignore_case = TRUE))) %>%
-  pull(disease) %>%
-  unique() %>%
-  as_tibble() %>%
-  rename(disease = value)
-
-#cancer
-cancer_chronic = final_dataset %>%
-  filter(str_detect(disease, regex("cancer", ignore_case = TRUE))) %>%
-  pull(disease) %>%
-  unique() %>%
-  as_tibble() %>%
-  rename(disease = value)
-
-#hiv/aids
-hiv_aids_chronic = final_dataset %>%
-  filter(str_detect(disease, regex("hiv", ignore_case = TRUE)) | str_detect(disease, regex("aids", ignore_case = TRUE))) %>%
-  pull(disease) %>%
-  unique() %>%
-  as_tibble() %>%
-  rename(disease = value)
-
-#combine hepatitis, cancer and hiv/aids with chronic diseases
-chronic_diseases = rbind(chronic_diseases, hepatitis_chronic, cancer_chronic, hiv_aids_chronic)
-chronic_diseases = chronic_diseases %>%
-  unique()
-
-#indicator of chronic disease
-indicator_chronic_disease = vector()
-indicator_chronic_disease[1:nrow(chronic_diseases)] = c("yes")
-indicator_chronic_disease = as.tibble(indicator_chronic_disease)
-
-#final chronic disease dataset with indicator column (y/n)
-chronic_diseases_final = cbind(chronic_diseases, indicator_chronic_disease) %>%
-  rename(chronic_disease = value) 
-#formatting for exact matching
-final_dataset$disease = trimws(final_dataset$disease, which = "right")
-chronic_diseases_final$disease = trimws(chronic_diseases_final$disease, which = "both")
-final_dataset$disease = tolower(final_dataset$disease)
-chronic_diseases_final$disease = tolower(chronic_diseases_final$disease)
-
-# Join final dataset and chronic disease dataset to complete analysis.
-final_dataset = left_join(final_dataset,chronic_diseases_final, by = "disease")
-final_dataset$chronic_disease[is.na(final_dataset$chronic_disease)] = "no"
-final_dataset = final_dataset %>%
-  mutate(disease_type = as.factor(recode(chronic_disease, 'no' = "acute", 'yes' = "chronic")),
-         disease = str_to_title(disease))
-
-rm(chronic_diseases, indicator_chronic_disease, cancer_chronic, hepatitis_chronic, hiv_aids_chronic, chronic_diseases_1, chronic_diseases_2, chronic_diseases_3, chronic_diseases_1_html, chronic_diseases_2_html, chronic_diseases_3_html, chronic_diseases_final, patent_exclusivity, product_ingredient) #clean up workspace
-```
 
 
 We initially checked to see if there was an overall trend in the average price of all drugs from 2013 to 2017.  We observe a clear increasing trend in the overall average drug price.  In particular, we observe a notable increase between 2014 and 2015. We think this may be related to the full implementation of the Affordable Care Act (ACA) in 2015.
 
 ```{r, warning = FALSE, message = FALSE}
-
 final_dataset %>%
   group_by(year) %>%
   summarize(avg_all_drugs_price = mean(avg_price)) %>%
@@ -391,7 +58,6 @@ final_NIH_funding %>%
   summarize(total_funding = sum(funding, na.rm = TRUE)) %>%
   plot_ly(x = ~ year, y = ~ total_funding, mode = "lines", type = "scatter") %>% 
   layout(title = "Change in Total NIH Funding (millions USD) over Time")
-
 ```
 
 
@@ -403,7 +69,6 @@ This drug has a very low price, which we think is because of the extremely high 
 
 ```{r, warning = FALSE, message = FALSE}
 #does funding correlate with drug prices?
-
 final_dataset %>%
   group_by(disease, trade_name) %>%
   summarize(avg_funding = mean(funding, na.rm = TRUE), 
@@ -430,19 +95,6 @@ final_dataset %>%
               
 ```
 
-
-* We look at the yearly distribution of drug prices for a few drugs. Some drugs have skewed price distributions. Zoloft, a drug that treats panic disorders, seems to have almost doubled in price from 2013 to 2017.
-
-```{r drug_price_distr, warning = FALSE, message = FALSE}
-trade_name_choice = "Zoloft"
-violin_drug = drug_price %>%
-  filter(trade_name == trade_name_choice) %>%
-  ggplot(aes(x = year, y = unit_price, fill = year)) + 
-  geom_violin() +
-  ggtitle(paste0("Distribution of Prices (USD) for ", trade_name_choice), subtitle = NULL)
-
-ggplotly(violin_drug)
-```
 
 We created a spaghetti plot of the average price per year for each drug. Information about the disease that the drugs treat can be seen by hovering over the plot. We notice that, the drugs for Hepatitis C seem to have the highest cost.
 
