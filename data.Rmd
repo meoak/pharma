@@ -1,0 +1,105 @@
+---
+title: ""
+output: 
+  html_document:
+    code_folding: null
+---
+#
+#
+### **The Data**
+
+**FDA Orange Book**: This contained 4 datasets: patents, exclusivity, ingredients, and products.
+
+  + Patents: Contains patent number and expiration dates of FDA approved drugs.
+  
+  + Exclusivity: Contains information on drugs that were granted exclusivity by the FDA.  Exclusivity provides protection from new market competition for a short time.
+  
+  + Ingredients: Contained information on the active ingredients in drugs.
+  
+  + Products: Contained the trade name for the drug, the company that developed the drug, and whether the drug was brand or generic.
+  
+**Drug Price**: This dataset contained the prices paid by pharmacies to acquire the drug.
+
+**NIH Funding**: Contained the NIH finding for disease research areas for 2013 to 2018 (estimated) and the prevalence of the disease.  
+
+**Drug Disease**: Dataset linking drugs was the disease that they treat.
+
+
+### Drug Price
+
+  + Found [here](https://data.medicaid.gov/resource/tau9-gfwr.csv)
+* It contains weekly drug prices from November 2013 to October 2017 recorded. 
+
+### NIH Funding
+
+* The NIH RCDC Report
+* This dataset contains the annual support for various disease categories based on grants, contracts, and other funding mechanisms used across the National Institutes of Health (NIH).  Prevalence and mortality data included in this dataset is from the National Center for Health Statistics (NCHS) at the Centers for Disease Control & Prevention (CDC).
+  + Explore [here](https://report.nih.gov/categorical_spending.aspx)
+  
+### Patents
+* The Patents [dataset](https://www.fda.gov/Drugs/InformationOnDrugs/ucm129689.htm) from the FDA Orange Book
+
+### Products, Ingredient & Exclusivity
+* The Products [dataset](https://www.fda.gov/Drugs/InformationOnDrugs/ucm129689.htm) from the FDA Orange Book
+
+### Drugs By Condition
+* Scraping data on drugs per condition from [this website](https://www.centerwatch.com/drug-information/fda-approved-drugs/medical-conditions/A)
+
+### Chronic Diseases
+* Scrapping data on chronic diseases from three websites. 
+    + [First](https://www.medicalschemes.com/medical_schemes_pmb/chronic_disease_list.htm)
+    + [Second](http://www.health24.com/Medical-schemes/PMB-and-chronic-disease/List-of-chronic-diseases-20120721)
+    + [Third](https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/Chronic-Conditions/CC_Main.html)
+
+
+### **The Variables** 
+
+* trade_name: the trade name of the drug
+
+* drug_type: the drug type (B: Brand or G: Generic)
+
+* otc: over the counter drug (Yes or No)
+
+* pricing_unit: EA for each, GM for gram, and ML for milliliters
+
+* year: the funding and pricing year
+
+* avg_price: the average price for the particular year
+
+* dose_form: the dose form (tablet, solution, solution injectable)
+
+* route: route of administration (oral or IV)
+
+* strength: the strength of the dose
+
+* application_no: the FDA assigned number to the drug application.
+
+* product_no: The FDA assigned number to identify the application products; used for joining datasets.
+
+* approval_year: the year the patent was approved
+
+* app_full: the full name of the company that developed the drug
+
+* active_ingredient: the active ingredient
+
+* ingredient: the active ingredients in a wide format; used for joining datasets
+
+* patent_num: the patent number
+
+* pediatric_exclusivity_granted: yes or no
+
+* year_pat_expires: the patent expiration year
+
+* year_excl_expires: the exclusivity expiration year
+
+* disease: the disease the drug treats
+
+* prevalence: the disease prevalence for 2015
+
+* US_mortality_2015: the disease mortality rate
+
+* funding: the NIH funding for disease research in millions
+
+* disease_type: the type disease (acute or chronic)
+
+

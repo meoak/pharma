@@ -1,0 +1,17 @@
+---
+title: ""
+output: 
+  html_document:
+    code_folding: null
+---
+#
+#
+### **Data Wrangling**
+
+  + We put all sub-datasets in long format and renamed variables as necessary. 
+ 
+  + We restricted our final dataset to contain only non-solution drugs. The pricing units of these drugs are described as “each” or “per gram.” We omitted all solution-type drugs because the Drug Price dataset did not specify if liquid drugs were drinkable solutions or injectable.  Also all drugs were measured by two different units: milliliters and grams. Therefore, we could not compare between solution and per gram/each type of drugs. 
+ 
+  + The Drug Price Excel dataset had over 5 million observations. Prices were recorded for each drug every week.  To representatively condense this dataset, we obtained a yearly average drug price (avg_price). This condensed the Drug Price dataset to approximately 2.5 million observations. 
+ 
+  + We joined patents, products, exclusivity, ingredient, drug_disease_data, final_nih_funding, and drug_price and chronic_diseases_final into a final dataset (final_dataset). We used the variables ingredient, application_no, product_no, drug_type, trade_name, otc, and disease as keys for joining (inner and left).

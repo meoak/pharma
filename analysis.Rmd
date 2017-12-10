@@ -1,0 +1,1058 @@
+---
+title: ""
+output: 
+  html_document:
+    code_folding: hide
+---
+#
+#
+### **Analysis**
+
+```{r load_packages, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+library(tidyverse)
+library(tidytext)
+
+library(broom)
+library(dplyr)
+library(forcats)
+library(httr)
+library(janitor)
+library(knitr)
+library(magrittr)
+library(plotly)
+library(readxl)
+library(rvest)
+library(stringr)
+library(viridis)
+```
+
+
+```{r tidy_drug_price, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+# # API code
+# url = "https://data.medicaid.gov/resource/tau9-gfwr.csv"
+# drug_price =
+#   GET(url, query = list("$limit" = 9999999)) %>%
+#   content("parsed") %>%
+#   clean_names()
+
+# # CSV code
+drug_price =
+  read_csv("../data/drug_price.csv") %>%
+  clean_names()
+```
+
+
+```{r rename_split_date, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+drug_price = 
+  drug_price %>%
+  rename(trade_name = ndc_description,
+         drug_type = classification_for_rate_setting,
+         unit_price = nadac_per_unit) %>%
+  mutate(trade_name = str_replace(trade_name, "[0-9]", "_"),
+         trade_name = str_to_title(trade_name),
+         otc = recode(otc, "Y" = "yes", "N" = "no"),
+         otc = str_to_title(otc),
+         otc = as.factor(otc)) %>% 
+  separate(trade_name, into = c("trade_name", "remove"), sep = "_") %>% 
+  separate(effective_date, into = c("year", "month", "date")) %>%
+  select(-c(date, x1, remove)) %>%
+  mutate(trade_name = trimws(trade_name, which = c("both"))) %>% 
+  separate(trade_name, into = c("trade_name", "remove"), sep = " ") %>% 
+  filter(is.na(remove)) %>%
+  select(-remove) %>% 
+  filter(pricing_unit == "GM" | pricing_unit == "EA") %>% 
+  select(trade_name, everything()) 
+```
+
+```{r, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+new_drug_price = drug_price %>% 
+  group_by(trade_name, drug_type, otc, pricing_unit, year) %>% 
+  summarize(avg_price = mean(unit_price, na.rm = TRUE))
+
+new_drug_price
+```
+
+
+```{r load_funding, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+
+final_NIH_funding = read_csv("./data/final_NIH_funding.csv") 
+```
+
+
+```{r load_patents, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+patents = read_csv("./data/patent.csv")
+patents = patents %>% 
+  clean_names() %>%
+  rename(drug_type = appl_type) %>% 
+  mutate(drug_type = recode(drug_type, "N" = "B")) %>%
+  separate(patexp, into = c("month_pat_expires", "day_pat_expires", "year_pat_expires"), sep = "/") %>%
+  separate(patent_no, into = c("patent_num", "pediatric_exclusivity_granted"), sep = "\\*")
+
+patents$pediatric_exclusivity_granted[is.na(patents$pediatric_exclusivity_granted)] = "no"
+patents$drugsub[is.na(patents$drugsub)] = "no"
+patents$drugprod[is.na(patents$drugprod)] = "no"
+patents$delist[is.na(patents$delist)] = "no"
+
+patents = patents %>%
+  mutate(pediatric_exclusivity_granted = factor(pediatric_exclusivity_granted, levels = c("no", "PED"), labels = c("No", "Yes"))) %>%
+  mutate(drug_substance_flag = factor(drugsub, levels = c("no", "Y"), labels = c("no", "yes"))) %>%
+  mutate(drug_prod_flag = factor(drugprod, levels = c("no", "Y"), labels = c("no", "yes"))) %>%
+  mutate(patent_delisted = factor(delist, levels = c("no", "Y"), labels = c("no", "yes"))) %>%
+  select(-drugsub, -drugprod, -patexpstr) %>%
+  rename(pat_use_code = patuse)
+patents
+```
+
+
+```{r load_products, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+products = read_csv("./data/products.csv")
+products = products %>%
+  rename(drug_type = appl_type,
+         otc = type) %>% 
+  mutate(drug_type = recode(drug_type, "A" = "G", "N" = "B"),
+         otc = recode(otc, "OTC" = "yes", "RX" = "no", "DISCN" = "no")) %>%
+  separate(appdate, into = c("approval_month", "approval_day", "approval_year"), sep = "/") %>%
+  #separate(doseform, into = c("form", "release_type"), sep = ",")
+  mutate(otc = factor(otc)) %>%
+  mutate(ref_listed_drug = factor(rld)) %>%
+  mutate(ref_std = factor(rs)) %>%
+  select(-appdatestr, -rld, -rs, -dfroute)
+products
+```
+
+
+```{r tidy_exclusivity, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+exclusivity = read_csv("./data/exclusivity.csv") %>%
+  clean_names() %>%
+  rename(drug_type = appl_type) %>% 
+  mutate(drug_type = recode(drug_type, "A" = "G", "N" = "B")) %>% 
+  separate(excldate, into = c("month_excl_expires", "date_excl_expires", "year_excl_expires"))
+exclusivity
+```
+
+
+```{r tidy_ingredients, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+ingredient = read_csv("./data/ingredient.csv") %>%
+  clean_names() %>%
+  select(singnum, singredient, everything())
+ingredient
+```
+
+
+```{r scrape_drug_disease, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+
+urls = paste("https://www.centerwatch.com/drug-information/fda-approved-drugs/medical-conditions/", toupper(letters), sep = "")
+
+get_drug_disease = function(url) {
+  
+  disease_data = read_html(url) %>% 
+  html_nodes(css = ".ToggleDrugCategory") %>%
+  html_text() %>% 
+  as_tibble() %>% 
+  mutate(key = value) %>% 
+  rename(disease = value)
+  
+  drug_data = read_html(url) %>% 
+  html_nodes(css = ".CategoryListSection a:nth-child(1)") %>%
+  html_text() %>% 
+  as_tibble() %>% 
+  mutate(key = value) %>% 
+  rename(drug = value)
+  
+  drug_disease_data = read_html(url) %>% 
+  html_nodes(css = "#MainColumn a:nth-child(1)") %>%
+  html_text() %>% 
+  as_tibble() %>% 
+  mutate(key = value) %>% 
+  rename(drug_disease = value)
+  
+  drug_disease_joined = left_join(drug_disease_data, drug_data, disease_data, by = "key") %>% 
+  left_join(., disease_data, by = "key") %>%
+  fill(disease) %>%
+  select(-c(drug,drug_disease))
+  
+  toremove = drug_disease_joined %>% distinct(disease) %>% pull()
+  
+  drug_disease_joined = drug_disease_joined %>% 
+  filter(!key %in% toremove) %>% 
+  rename(drug = key) %>% 
+  .[-c(1:29),]
+  
+  drug_disease_joined
+}
+
+drug_disease_data = map_df(urls, get_drug_disease) %>% 
+  mutate(disease = str_to_title(disease),
+         drug = str_to_title(drug)) %>% 
+  rename(trade_name = drug) %>%
+  mutate(trade_name = trimws(trade_name, which = c("both"))) %>% 
+  separate(trade_name, into = c("trade_name", "remove"), sep = " ") %>% 
+  select(-remove)
+
+drug_disease_data
+```
+
+
+```{r, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+#first dataset
+chronic_diseases_1_html = read_html("https://www.medicalschemes.com/medical_schemes_pmb/chronic_disease_list.htm")
+chronic_diseases_1 = chronic_diseases_1_html %>%
+  html_nodes("td td td .maintext") %>%
+  html_text() %>%
+  as_tibble() %>%
+  rename(disease = value)
+
+#second dataset
+chronic_diseases_2_html = read_html("http://www.health24.com/Medical-schemes/PMB-and-chronic-disease/List-of-chronic-diseases-20120721")
+chronic_diseases_2 = chronic_diseases_2_html %>%
+  html_nodes("ul:nth-child(10) li , ul:nth-child(10) a") %>%
+  html_text() %>%
+  as_tibble() %>%
+  rename(disease = value)
+
+#third dataset
+chronic_diseases_3_html = read_html("https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/Chronic-Conditions/CC_Main.html")
+chronic_diseases_3 = chronic_diseases_3_html %>%
+  html_nodes("td") %>%
+  html_text() %>%
+  as_tibble() %>%
+  rename(disease = value)
+
+#final chronic disease dataset
+chronic_diseases = rbind(chronic_diseases_1, chronic_diseases_2, chronic_diseases_3) %>%
+  distinct()
+
+#recode diseases
+chronic_diseases$disease[62] = "Cancer"
+chronic_diseases$disease[67] = "High Blood Pressure"
+chronic_diseases$disease[43] = "High cholesterol"
+chronic_diseases$disease[60] = "Austism"
+chronic_diseases$disease[55] = "Arthritis"
+chronic_diseases$disease[46] = "Hypothyroidism"
+chronic_diseases$disease[38] = "Dysrhythmia"
+chronic_diseases$disease[66] = "inactive thyroid gland"
+chronic_diseases$disease[53] = "alzheimer's disease"
+chronic_diseases$disease[26] = "Dementia"
+chronic_diseases$disease[56] = "Hepatitis"
+chronic_diseases$disease[71] = "COPD"
+```
+
+
+```{r join_dataset, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+#A: join datasets by ingredient for ingredient and products (left join)
+#products = longer dataset + ingredient
+product_ingredient = left_join(products, ingredient, by = "ingredient")
+product_ingredient
+
+#B: exclusivity and patents left join (more~less)
+patent_exclusivity = left_join(patents, exclusivity, by = c("appl_no", "product_no", "drug_type"))
+patent_exclusivity
+
+#C: join A and B left join: "Orange Book." Thursday: meet to eliminate variables (inner join: only commonalities are preserved) #eliminate drugs that do not match
+orange_book = left_join(product_ingredient, patent_exclusivity, by = c("appl_no", "product_no", "drug_type"))
+
+orange_book = orange_book %>%
+  mutate(ingredient = str_to_title(ingredient),
+         doseform = str_to_title(doseform),
+         route = str_to_title(route),
+         trade_name = str_to_title(trade_name),
+         applicant = str_to_title(applicant),
+         otc = str_to_title(otc),
+         appfull = str_to_title(appfull),
+         singredient = str_to_title(singredient),
+         strength = str_to_title(strength))
+orange_book
+
+# final goal: disease, funding, drug prices, and Orange Book
+
+# eliminate unnecessary variables from orange book dataset
+orange_book_clean = orange_book %>%
+  rename(application_no = appl_no, 
+         active_ingredient = singredient, 
+         dose_form = doseform) %>%
+  select(-c(ingredient, applicant, product_no, tecodestr, tecode, approval_day, ref_std, singnum, day_pat_expires, pat_use_code, drug_substance_flag, drug_prod_flag, exclcode, excldatestr, date_excl_expires)) %>% 
+  select(trade_name, everything()) %>% 
+  separate(dose_form, into = c("dose_form", "remove")) %>%
+  filter(is.na(remove)) %>% 
+  select(-remove) %>% 
+  filter(str_detect(dose_form, regex("Tablet", ignore_case = TRUE))) %>%
+  mutate(trade_name = trimws(trade_name, which = c("both")),
+         trade_name = str_replace_all(trade_name, ", ", "-"),
+         trade_name = str_replace_all(trade_name, " And ", "-"))
+
+# inner join of disease drug and orange book by trade_name
+final_dataset =
+  new_drug_price %>%
+  inner_join(., orange_book_clean, by = c("trade_name", "drug_type", "otc")) %>% 
+  distinct() %>% 
+  left_join(., drug_disease_data, by = "trade_name") %>% 
+  distinct() %>% 
+  mutate(disease = str_replace(disease, " And ", "_"),
+         disease = str_replace(disease, "High Blood Pressure \\(", ""),
+         disease = str_replace(disease, "Copd \\(", ""),
+         disease = str_replace(disease, "\\/Hyperactivity", ""),
+         disease = str_replace(disease, "\\)", ""),
+         disease = str_replace(disease, " Mellitus, Type 2", ""),
+         disease = str_replace(disease, " Mellitus Types I", ""),
+         disease = str_replace(disease, "Hepatitis", "Hepatitis C"),
+         disease = str_replace(disease, "Hepatitis C B", "Hepatitis B"),
+         disease = str_replace(disease, "Hepatitis C C", "Hepatitis C"),
+         disease = str_replace(disease, "Hiv/Aids", "HIV/AIDS"),
+         disease = str_replace(disease, " \\- ", "_"),
+         disease = str_replace(disease, "Migraine", "Migraines")
+         ) %>%
+  separate(disease, into = c("disease", "remove"), sep = "\\_") %>% 
+  select(-remove) %>% 
+  separate(disease, into = c("disease", "remove"), sep = "\\(") %>% 
+  select(-remove) %>% 
+  separate(disease, into = c("disease", "remove"), sep = "\\;") %>%
+  select(-remove) %>% 
+  left_join(., final_NIH_funding, by = c("disease", "year")) %>%
+  as_tibble() %>%
+  distinct() %>% 
+  mutate(disease = str_replace(disease, "Chronic Obstructive Pulmonary Disease", "Chronic Obstructive Pulmonary Disorder"),
+         disease = str_replace(disease, "Kidney Disease", "Chronic Kidney Disease"),
+         disease = str_replace(disease, "Cardiac Ischemia", "Coronary Artery Disease"),
+         disease = str_replace(disease, "Diabetes", "Diabetes Mellitus Types 1 & 2"),
+         disease = str_replace(disease, "Bipolar Disorder", "Bipolar Mood Disorder"))
+
+#joining for chronic
+#need to include breast cancer, hepatitis b, hepatitis c, lung cancer, prostate cancer bc chronic disease set does not specify
+#hepatitis
+hepatitis_chronic = final_dataset %>%
+  filter(str_detect(disease, regex("hepatitis", ignore_case = TRUE))) %>%
+  pull(disease) %>%
+  unique() %>%
+  as_tibble() %>%
+  rename(disease = value)
+
+#cancer
+cancer_chronic = final_dataset %>%
+  filter(str_detect(disease, regex("cancer", ignore_case = TRUE))) %>%
+  pull(disease) %>%
+  unique() %>%
+  as_tibble() %>%
+  rename(disease = value)
+
+#hiv/aids
+hiv_aids_chronic = final_dataset %>%
+  filter(str_detect(disease, regex("hiv", ignore_case = TRUE)) | str_detect(disease, regex("aids", ignore_case = TRUE))) %>%
+  pull(disease) %>%
+  unique() %>%
+  as_tibble() %>%
+  rename(disease = value)
+
+#combine hepatitis, cancer and hiv/aids with chronic diseases
+chronic_diseases = rbind(chronic_diseases, hepatitis_chronic, cancer_chronic, hiv_aids_chronic)
+chronic_diseases = chronic_diseases %>%
+  unique()
+
+#indicator of chronic disease
+indicator_chronic_disease = vector()
+indicator_chronic_disease[1:nrow(chronic_diseases)] = c("yes")
+indicator_chronic_disease = as.tibble(indicator_chronic_disease)
+
+#final chronic disease dataset with indicator column (y/n)
+chronic_diseases_final = cbind(chronic_diseases, indicator_chronic_disease) %>%
+  rename(chronic_disease = value) 
+#formatting for exact matching
+final_dataset$disease = trimws(final_dataset$disease, which = "right")
+chronic_diseases_final$disease = trimws(chronic_diseases_final$disease, which = "both")
+final_dataset$disease = tolower(final_dataset$disease)
+chronic_diseases_final$disease = tolower(chronic_diseases_final$disease)
+
+# Join final dataset and chronic disease dataset to complete analysis.
+final_dataset = left_join(final_dataset,chronic_diseases_final, by = "disease")
+final_dataset$chronic_disease[is.na(final_dataset$chronic_disease)] = "no"
+final_dataset = final_dataset %>%
+  mutate(disease_type = as.factor(recode(chronic_disease, 'no' = "acute", 'yes' = "chronic")),
+         disease = str_to_title(disease))
+
+rm(chronic_diseases, indicator_chronic_disease, cancer_chronic, hepatitis_chronic, hiv_aids_chronic, chronic_diseases_1, chronic_diseases_2, chronic_diseases_3, chronic_diseases_1_html, chronic_diseases_2_html, chronic_diseases_3_html, chronic_diseases_final, patent_exclusivity, product_ingredient) #clean up workspace
+```
+
+
+We initially checked to see if there was an overall trend in the average price of all drugs from 2013 to 2017.  We observe a clear increasing trend in the overall average drug price.  In particular, we observe a notable increase between 2014 and 2015. We think this may be related to the full implementation of the Affordable Care Act (ACA) in 2015.
+
+```{r, warning = FALSE, message = FALSE}
+
+final_dataset %>%
+  group_by(year) %>%
+  summarize(avg_all_drugs_price = mean(avg_price)) %>%
+  plot_ly(x = ~ year, y = ~avg_all_drugs_price, mode = "lines", type = "scatter") %>%
+  layout(title = "Trend in Overall Average Drug Price", yaxis = list(title = "drug price (USD)"))
+```
+
+We also looked at the total NIH funding for each year from 2013-2018.  We see that funding increased until it leveled off in 2016 and there is a projected decrease for 2018.
+
+```{r, warning = FALSE, message = FALSE}
+final_NIH_funding %>%
+  group_by(year) %>%
+  summarize(total_funding = sum(funding, na.rm = TRUE)) %>%
+  plot_ly(x = ~ year, y = ~ total_funding, mode = "lines", type = "scatter") %>% 
+  layout(title = "Change in Total NIH Funding (millions USD) over Time")
+
+```
+
+
+Then, we looked to determine whether funding correlated with drug prices.  This does not really seem to be the case from the scatterplot.  Along the entire range of funding amounts, most drugs still have relatively low prices.  It is interesting that different drugs that treat the same disease seem to be largely clustered together.
+
+We can see one breast cancer drug, Afinitor, which actually can be used to treat various types of cancers including kidney, pancreas, breast, and brain cancer, has an unusually high price.  We think these other applications are what are influencing the price.  Another unusual drug is Belviq, used to treat obesity.  
+
+This drug has a very low price, which we think is because of the extremely high prevalence of obesity or other factors such as competitors. 
+
+```{r, warning = FALSE, message = FALSE}
+#does funding correlate with drug prices?
+
+final_dataset %>%
+  group_by(disease, trade_name) %>%
+  summarize(avg_funding = mean(funding, na.rm = TRUE), 
+            avg_price_disease = mean(avg_price, na.rm = TRUE)) %>%
+  plot_ly(x = ~ avg_funding, y = ~ avg_price_disease, type = "scatter", color = ~disease, text = ~paste('Drug: ', trade_name, '<br> Disease:', disease)) %>%
+  layout(title = "Average Funding vs Average Price", showlegend = FALSE)
+```
+
+Looking at funding vs. disease for acute vs chronic diseases, we see a relatively random scatter. Therefore, we do not think there is a significant trend for funding by disease type.
+
+```{r, warning = FALSE, message = FALSE}  
+ax <- list(
+  zeroline = FALSE,
+  showline = FALSE,
+  showticklabels = FALSE,
+  showgrid = FALSE
+)
+
+final_dataset %>%
+  group_by(disease, funding, disease_type) %>%
+  summarize(avg_funding = mean(funding, na.rm = TRUE)) %>%
+  plot_ly(x = ~ disease, y = ~ funding, color = ~disease_type, type = "scatter") %>%
+  layout(title = "Average NIH Funding (millions USD) For Chronic vs Acute Diseases", xaxis = ax)
+              
+```
+
+
+* We look at the yearly distribution of drug prices for a few drugs. Some drugs have skewed price distributions. Zoloft, a drug that treats panic disorders, seems to have almost doubled in price from 2013 to 2017.
+
+```{r drug_price_distr, warning = FALSE, message = FALSE}
+trade_name_choice = "Zoloft"
+violin_drug = drug_price %>%
+  filter(trade_name == trade_name_choice) %>%
+  ggplot(aes(x = year, y = unit_price, fill = year)) + 
+  geom_violin() +
+  ggtitle(paste0("Distribution of Prices (USD) for ", trade_name_choice), subtitle = NULL)
+
+ggplotly(violin_drug)
+```
+
+We created a spaghetti plot of the average price per year for each drug. Information about the disease that the drugs treat can be seen by hovering over the plot. We notice that, the drugs for Hepatitis C seem to have the highest cost.
+
+```{r price_drug_disease, warning = FALSE, message = FALSE}
+final_dataset %>% 
+  #filter(disease %in% c("Obesity")) %>%
+  filter(pricing_unit == "EA" & !is.na(disease)) %>% 
+  plot_ly(x = ~year, y = ~avg_price, type = "scatter", mode = "lines", text = ~paste("Drug: ", trade_name, '<br>Disease:', disease), color = ~trade_name, alpha = 0.5) %>% 
+  layout(title = "Average Price (USD) of Drugs over Time", showlegend = FALSE)
+```
+
+We also created a scatter plot of the mean NIH funding per drug (assumed to be the same as the NIH funding for disease research) against the demand of the drug (defined as the 2015 disease prevalence). Obesity seems to have received the most funding on average and to have the highest 2015 prevalence.  This may be due to Michelle Obama's Let's Move initiative to fight childhood obesity.
+
+We looked to explore whether there was a relationship between prevalence and funding.  While the number of diseases with the required complete data was relatively small, it appears from the scatterplot that when you have a low prevalence, there is a wide range of average funding.  As the prevalence increases the funding amount generally seems to be on the lower side.  However, if you look more closely at which diseases are included, some interesting observations can be made. 
+
+Many of the diseases with high funding are cancers, which have a low prevalence.  Most cancers have large subgroups with no good treatment options, so it makes sense that there is a lot of research focused on cancer and new drug development.  Some diseases with higher prevalence but lower funding are hypertension, migraines, ADD, and COPD, which do already have treatment options available on the market.
+
+```{r funding_demand, warning = FALSE, message = FALSE}
+final_dataset %>% 
+  filter(pricing_unit == "EA" & !is.na(funding) & !is.na(prevalence)) %>% 
+  group_by(trade_name, disease, prevalence) %>% 
+  summarize(mean_fund = mean(funding)) %>% 
+  plot_ly(x = ~prevalence, y = ~mean_fund, type = "scatter", alpha = 1, text = ~paste("Drug: ", trade_name, '<br>Disease:', disease), color = ~disease) %>%
+  layout(title = "Funding (millions USD) vs Prevalence", showlegend = FALSE)
+```
+
+
+#### **Pharmaceutical Companies and Top Drugs**
+```{r, echo = FALSE, results = FALSE, warnings = FALSE, message = FALSE}
+# write_csv(final_dataset, path = "./data/final_dataset_20171205.csv")
+# final_dataset = read_csv("./data/final_dataset_20171205.csv")
+
+#Patent Cleaning
+patents = final_dataset %>%
+  ungroup() %>% 
+  select(appfull, disease, avg_price, patent_num, year_pat_expires, approval_year, year_excl_expires) %>% 
+  filter(!duplicated(patent_num)) %>%
+  filter(!is.na(disease)) %>%
+  filter(year_pat_expires > 2017) %>% 
+  mutate(
+    year_pat_expires = as.factor(year_pat_expires), 
+    disease = str_replace(disease, "Clostridium Difficile-Associated Diarrhea", "Diarrhea_nosocomial"),
+    disease = str_replace(disease, "Chronic Diarrhea", "Diarrhea (chronic)"),
+    disease = str_replace(disease, "Chronic Kidney Disease", "Kidney Disease (chronic)"),
+    disease = str_replace(disease, "Chronic Myeloid Leukemia", "Myeloid Leukemia"),
+    disease = str_replace(disease, "Thyroid Disease", "Thyroid Disorders"),
+    #appfull = str_replace(appfull, "-", " "),
+    appfull = str_replace(appfull, " Ab", ""),
+    appfull = str_replace(appfull, " And", ""),
+    appfull = str_replace(appfull, " Biotech", ""),
+    appfull = str_replace(appfull, " Co", ""),
+    appfull = str_replace(appfull, " Inc", ""),
+    appfull = str_replace(appfull, " International", ""),
+    appfull = str_replace(appfull, " Ireland s", ""),
+    appfull = str_replace(appfull, " Ltd", ""),
+    appfull = str_replace(appfull, " Llc", ""),
+    appfull = str_replace(appfull, " Lp", ""),
+    appfull = str_replace(appfull, " Holdings", ""),
+    appfull = str_replace(appfull, " Pharmaceutical", ""),
+    appfull = str_replace(appfull, " Pharmaceuticals", ""),
+    appfull = str_replace(appfull, " Products", ""),
+    appfull = str_replace(appfull, " Research Institute", ""),
+    appfull = str_replace(appfull, " Research Development", ""),
+    appfull = str_replace(appfull, " s ", ""),
+    appfull = str_replace(appfull, " Trading", ""),
+    appfull = str_replace(appfull, " Unltd", ""),
+    appfull = str_replace(appfull, "Allergans", "Allergan"),
+    appfull = str_replace(appfull, "Astrazenecas", "Astrazeneca"),
+    appfull = str_replace(appfull, "Bristol-Myers Squibb", "Bristol Myers Squibb"),
+    appfull = str_replace(appfull, "Bristol-Myers Squibb Co", "Bristol Myers Squibb Co"),
+    appfull = str_replace(appfull, "Janssens", "Janssen"),
+    appfull = str_replace(appfull, "Ingelheims", "Ingelheim"),
+    appfull = str_replace(appfull, "Pfizers", "Pfizer"),
+    appfull = str_replace(appfull, "Wyeths Wholly Owned Sub Pfizer Inc", "Pfizer")) %>%
+  arrange(appfull)
+patents
+
+#Labeling Axes
+xax_pharma = list(
+  title = "Pharmaceutical Company",
+  zeroline = FALSE,
+  showline = FALSE,
+  showticklabels = FALSE,
+  showgrid = FALSE
+)
+xax_disease = list(
+  title = "Disease",
+  zeroline = FALSE,
+  showline = FALSE,
+  showticklabels = FALSE,
+  showgrid = FALSE
+)
+yax = list(
+  title = "No. of Patents",
+  zeroline = FALSE,
+  showline = FALSE,
+  showticklabels = TRUE,
+  showgrid = TRUE
+)
+yax_1 = list(
+  title = "No. of Patents",
+  zeroline = FALSE,
+  showline = FALSE,
+  showticklabels = FALSE,
+  showgrid = TRUE
+)
+```
+
+Below we explore the number of patents currently held by pharmaceutical companies followed by a projection of expiring patents by company.
+```{r, results = FALSE, warnings = FALSE, message = FALSE}
+#Avg Drug Prices by Company for each Disease
+pharma_charge = patents %>% 
+  group_by(disease, appfull) %>%
+  summarize(comp_avg_price = mean(avg_price))
+
+pat_exp = patents %>%
+  group_by(appfull, year_pat_expires) %>%
+  count() %>% 
+  rename(num_pat_exp = n)
+```
+
+
+```{r, warnings = FALSE, message = FALSE}
+pharma_charge %>% 
+  plot_ly(x = ~comp_avg_price, y = ~disease, type = "scatter",  text = ~paste('Company: ', appfull, '<br> Disease', disease), color = "red") %>% 
+  layout(title = "Avg Drug Price By Disease", 
+         yaxis = list(
+           title = "",
+           zeroline = FALSE,
+           showline = FALSE,
+           showticklabels = TRUE,
+           showgrid = TRUE))
+
+#No. of Patents Currently Held by Pharma Company
+patents %>%
+  group_by(appfull) %>%
+  count() %>%
+  rename(num_pat_held = n) %>%
+  ungroup() %>%
+  mutate(appfull = fct_reorder(appfull, num_pat_held)) %>%
+  plot_ly(x = ~appfull, y = ~num_pat_held, color = ~appfull, type = "bar", colors = "blue") %>% 
+  layout(title = "No. of Patents Currently Held by Pharmaceutical Company",  yaxis = yax, showlegend = FALSE)
+#xaxis = xax_pharma,
+
+#Projection of Expiring Patents by Pharma Company
+
+pat_exp %>%
+  plot_ly(x = ~year_pat_expires, 
+          y = ~appfull, 
+          color = ~appfull, 
+          type = "scatter", 
+          mode = 'markers', 
+          marker = list(size = ~num_pat_exp*3), 
+          text = ~paste('Count: ', num_pat_exp)) %>%
+  layout(title = "Projection of Expiring Patents by Pharmaceutical Company ", 
+         yaxis = list(
+           title = "Pharmaceutical Company",
+           zeroline = FALSE,
+           showline = FALSE,
+           showticklabels = FALSE,
+           showgrid = TRUE), 
+         showlegend = FALSE)
+```
+AstraZeneca is currently the largest patent holder.
+Keryx Pharmaceuticals has the most number of patents expiring overall.  Keryx's 11 patents expiring in 2024 cover chronic kidney disease allowing generics to enter the kidney disease markt.
+
+
+The following two plots explore the number of patents currently held by each specfic disease followed by a projection of expiring patents for that condition.
+```{r, warnings = FALSE, message = FALSE}
+#No. of Patents Currently Held by Disease
+patents %>%
+  group_by(disease) %>%
+  count() %>%
+  rename(num_pat_held = n) %>%
+  ungroup() %>%
+  mutate(disease = fct_reorder(disease, num_pat_held)) %>%
+  plot_ly(x = ~disease, y = ~num_pat_held, color = ~disease, type = "bar", colors = "red") %>% 
+  layout(title = "No. of Patents Currently Held by Disease",  yaxis = yax, showlegend = FALSE)
+#xaxis = xax_disease,
+
+#Projection of Expiring Patents by Disease
+patents %>%
+  group_by(disease, year_pat_expires) %>%
+  count() %>%
+  rename(num_pat_exp = n) %>%
+  # ungroup() %>% 
+  plot_ly(x = ~year_pat_expires, 
+          y = ~disease, 
+          color = ~disease, 
+          type = "scatter",
+          colors = "Set3", 
+          mode = 'markers', 
+          marker = list(size = ~num_pat_exp*3), 
+          text = ~paste('Disease:', disease, 'Count:', num_pat_exp)) %>%
+  layout(title = "Projection of Expiring Patents by Disease", 
+           yaxis = list(
+           title = "",
+           zeroline = FALSE,
+           showline = FALSE,
+           showticklabels = TRUE,
+           showgrid = TRUE), 
+         showlegend = FALSE)
+```
+Based on the plot above, the disease covered by the most patents is chronic diarrhea.
+The disease with the most patents expiring over the next several years chronic kidney disease.
+
+
+#### **Disease & Funding**
+
+* Does funding differ by disease? 
+
+  + There are 27 unique diseases in our dataset. Obesity has the highest mean funding of $906.2 million a year. Breast cancer has the second highest mean funding of $675.98 million per year. Alzheimer's Disease has the third highest mean funding of $646 million per year. Paget's Disease, a disease that disrupts the replacement of old bone tissue with new bone tissue, received the lowest mean funding of $1 million per year. Other diseases that received the lowest mean funding are Psoriasis ($16.7 million/year) and Migraines ($19.2 million/year). Obesity, Paget's Disease, Psoriasis and Migraines are acute conditions, while Breast cancer and Alzheimer's Disease are chronic conditions. 
+
+```{r Disease & Funding, warning = FALSE, message = FALSE}
+# final_dataset = read.csv("./data/final_dataset.csv")
+#shiny application: funding by disease
+final_dataset %>%
+  filter(!is.na(disease) & !is.na(funding)) %>%
+  mutate(disease = factor(disease)) %>%
+  group_by(disease) %>%
+  summarize(mean_funding = mean(funding)) %>%
+  mutate(disease = fct_reorder(disease, mean_funding)) %>%
+  plot_ly(x = ~disease, y = ~mean_funding, color = ~disease, type = "bar", colors = "Set3") %>% 
+  layout(title = "NIH Funding per Disease (millions USD)", xaxis = ax)
+
+#funding by disease (filtered by disease type = acute)
+#shiny: user clicks acute and sees funding
+final_dataset %>%
+  filter(!is.na(disease) & !is.na(funding) & disease_type == "acute") %>%
+  mutate(disease = factor(disease)) %>%
+  group_by(disease) %>%
+  summarize(mean_funding = mean(funding)) %>%
+  mutate(disease = fct_reorder(disease, mean_funding)) %>%
+  plot_ly(x = ~disease, y = ~mean_funding, color = ~disease, type = "bar", colors = "Set3")
+
+#funding by disease (filtered by disease type = chronic)
+final_dataset %>%
+  filter(!is.na(disease) & !is.na(funding) & disease_type == "chronic") %>%
+  mutate(disease = factor(disease)) %>%
+  group_by(disease) %>%
+  summarize(mean_funding = mean(funding)) %>%
+  mutate(disease = fct_reorder(disease, mean_funding)) %>%
+  plot_ly(x = ~disease, y = ~mean_funding, color = ~disease, type = "bar", colors = "Set3")
+```
+
+#### **Acute vs. Chronic Disease**
+##### Funding
+
+###### Is there a difference in funding between acute conditions and chronic diseases?
+  + Based on the boxplots below, we see that acute conditions have a wider interquartile range compared to chronic conditions: there is greater variability in acute condition funding compared to chronic. 25% of acute conditions have a funding of $18 million or less. 25% of acute conditions receive funding of more than $313 million or more. The median funding for acute conditions is $50 million per year. Acute funding is right skewed. 
+  
+  + Comparatively, chronic conditions have a lower variability in funding, but have more outliers. 25% of chronic conditions have a funding of $224 million or less. 25% of chronic conditions receive funding of more than $272.5 million or more. The median funding for chronic conditions is $253 million per year. Chronic funding has an approximately normal distribution in funding.
+  
+
+```{r Acute vs. Chronic, warning = FALSE, message = FALSE}
+#acute vs. chronic (boxplot)
+#Funding by disease status
+final_dataset %>%
+  filter(!is.na(disease) & !is.na(funding)) %>%
+  mutate(disease_type = fct_reorder(disease_type, funding)) %>%
+  group_by(disease_type) %>% 
+  plot_ly(y = ~funding, type = "box", color = ~disease_type, colors = "Set3") %>% 
+  layout(title = "Distribtuion NIH Funding (millions USD) for Acute vs Chronic Diseases")
+```
+
+###### Is there a statistically significant difference in funding between acute and chronic diseases?
+
+If we assume that the two samples are normally distributed, we would perform a two-sample t-test for Independent Samples. However, funding is highly skewed and does not meet the normality assumptions. We will instead conduct a Wilcoxon Rank-Sum Test (non-parametric), which is the non-parametric equivalent of the Two-Sample Independent t-test. If the median funding for acute diseases is different from that of chronic diseases, one disease type should tend to have larger values than the other.
+  
+The Wilcoxon Rank-Sum Test comparing median funding of the disease types rejects the null hypothesis that the median fundings of acute and chronic diseases are equal. Therefore we conclude that at the 0.05 significance level, the median funding of acute funding is statistically different from the median funding of chronic diseases.
+  
+For curiosity's sake, let's say we assumed that the two samples are normally distributed, independent and have equal variances. Therefore, we would conduct the two sample independent t-test. It's important to note that the validity of this test may be compromised because the funding variable violates the normality assumption. This test's conclusion aligns with the Wilcoxon Rank-Sum Test. 
+  
+At the 0.05 significance level, we reject the null hypothesis that the true difference of mean funding between disease types is zero. We are 95% confident that chronic diseases receive between $125 million to $153 million more dollars in mean funding per year compared to acute diseases.
+  
+In conclusion, we can conclude that the mean/median of chronic funding of $323.68 million/year is statistically different from the mean/median of acute funding of $184.51 million/year. 
+  
+```{r, echo = FALSE, results = FALSE}
+#Statistical Test of Funding Difference
+acute = final_dataset %>%
+  filter(!is.na(disease) & !is.na(funding)) %>%
+  filter(disease_type == "acute") 
+chronic = final_dataset %>%
+  filter(!is.na(disease) & !is.na(funding)) %>%
+  filter(disease_type == "chronic")
+# boxplot_skew_funding = boxplot(acute$funding, chronic$funding)
+# hist(acute$funding)
+# hist(chronic$funding)
+wilcox_results_funding = wilcox.test(acute$funding, chronic$funding, alternative = "two.sided", mu = 0, paired = FALSE)
+wilcox_results_funding
+t_test_results = t.test(acute$funding, chronic$funding, var.equal = TRUE, paired = FALSE)
+t_test_results
+```
+
+##### Pricing
+
+###### Is there a difference in pricing between acute conditions and chronic diseases? 
+  + Acute conditions have greater variability in pricing compared to chronic diseases, while chronic diseases have more outliers in pricing. Acute has a larger IQR for pricing, while chronic has a wider range in pricing. The average price of drugs that treat chronic diseases ranges from $0.03 to $1,096.67. The average price of drugs that threat chronic diseases ranges from $0.11 to $462.03. 
+ 
+###### Is there a statistically significant difference in pricing of drugs that treat either acute or chronic diseases? 
+  
+      + If we assume that the two samples are normally distributed, we would perform a two-sample t-test for Independent Samples. However, average price is highly skewed and does not meet the normality assumptions. We will instead conduct a Wilcoxon Rank-Sum Test (non-parametric), which is the non-parametric equivalent of the Two-Sample Independent t-test. If the median average price for acute diseases is different from that of chronic diseases, one disease type should tend to have larger values than the other.
+  
+      + The Wilcoxon Rank-Sum Test comparing median average price of the disease types rejects the null hypothesis that the median average prices of drugs that treat acute and chronic diseases are equal. Therefore we conclude that at the 0.05 significance level, the median average price of acute funding is statistically different from the median funding of chronic diseases.
+  
+      + For curiosity's sake, let's say we assumed that the two samples are normally distributed, independent and have equal variances. Therefore, we would conduct the two sample independent t-test. It's important to note that the validity of this test may be compromised because the funding variable violates the normality assumption. This test's conclusion aligns with the Wilcoxon Rank-Sum Test. 
+  
+          +  At the 0.05 significance level, we reject the null hypothesis that the true difference of mean "average price" between drugs that treat acute or chronic diseases is zero. We are 95% confident that drugs that treat acute conditions are priced between $43.87 and $52.22 more per dose than drugs that treat chronic conditions. 
+  
+      + In conclusion, we can conclude that the mean/median average price of drugs that treat acute diseases is statistically different from the mean/median average price of drugs that treat chronic diseases.
+        + Drugs that treat acute conditions have a mean "average price" of $173.43 per dose and chronic diseases have a mean "average price" of $125.39 per dose.  
+    
+```{r, warning = FALSE, message = FALSE}
+#Pricing by disease status (boxplot)
+final_dataset %>%
+  filter(!is.na(disease) & !is.na(avg_price)) %>%
+  mutate(disease_type = fct_reorder(disease_type, avg_price)) %>%
+  group_by(disease_type) %>% 
+  plot_ly(y = ~avg_price, type = "box", color = ~disease_type, colors = "Set3")
+```
+
+```{r, echo = FALSE, results = FALSE}
+
+acute = final_dataset %>%
+  filter(!is.na(disease) & !is.na(avg_price)) %>%
+  filter(disease_type == "acute") 
+chronic = final_dataset %>%
+  filter(!is.na(disease) & !is.na(avg_price)) %>%
+  filter(disease_type == "chronic")
+wilcox_results_price = wilcox.test(acute$avg_price, chronic$avg_price, alternative = "two.sided", mu = 0, paired = FALSE)
+wilcox_results_price
+t_test_results = t.test(acute$avg_price, chronic$avg_price, var.equal = TRUE, paired = FALSE)
+t_test_results
+```
+
+### **Case Study** 
+* We are interested in conducting a case study on pharmaceutical drugs that receive the highest advertisement spending, are the most prescribed according to US sales, are most abused (over prescribed, highly addictive, and/or frequently used as illicit street drugs), and are commonly referenced in everyday life or in popular American culture.
+
+##### Most Advertised (by spending)
+
+```{r Most Advertised, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+top_advertising_cost = c("Humira", "Lyrica", "Eliquis", "Xeljanz", "Cialis", "Invokana", "Breo", "Latuda", "Victoza", "Viagra")
+top_advertising_cost
+```
+
+  + First we examined the most advertised drugs in 2016 (top twenty).
+  
+    + In 2016, Humira had the highest advertising spending of $344 million.
+  
+    + Xeljanz, which treats both arthritis and rheumatoid arthritis (chronic conditions), had the highest mean average price per dose of $45.70. 
+  
+    + Eliquis, which treats atrial fibrillation, stroke, and thromboembolism (both chronic and acute conditions), had the lowest mean yearly price per dose of $5.29.
+    
+      + Of the twenty drugs with highest advertising spending, six drugs were found within the final dataset.
+  
+##### Most Prescribed (by sales)
+
+```{r Most Prescribed, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+### Top 20 precribed drugs by US sales
+top_prescribed_drugs_sales = c("Humira", "Harvoni", "Enbrel", "Lantus Solostar", "Remicade", "Januvia", "Advair Diskus", "Lyrica", "Crestor", "Neulasta", "Copaxone", "Rituxan", "Tecfidera", "Xarelto", "Lantus", "Eliquis", "Truvada", "Vyvanse", "Avastin", "Symbicort")
+top_prescribed_drugs_sales
+```
+
+  + Second, we examined the most prescribed drugs as defined by US sales. 
+      + Humira was the most prescribed drug for 2016, according to US sales. Americans bought $13.6 billion dollars of Humira, a biologic which treats adults with Rheumatoid Arthritis (RA) and moderate to severe Crohn's Disease.
+      
+      + Harvoni was the second most prescribed drug for 2016, according to US sales. Americans bought $10 billion dollars of Harvoni, a antiviral medication that treats adults with Hepatitis C.
+      
+      + Enbrel was the third most prescribed drug for 2016, according to US sales. Americans bought $3.6 billion dollars of Enbrel, a antiviral medication that treats adults with Hepatitis C.
+
+##### Most Abused
+
+```{r Most Abused, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+most_abused_drugs = c("Vicodin", "OxyContin", "Ritalin", "Concerta", "Focalin", "Metadate", "Ambien", "Lunesta", "Valium", "Xanax", "Duragesic", "Opana", "Darvon", "Dilaudid", "Demerol", "Lomotil", "Nembutal", "Dexedrine", "Adderall", "Percocet", "Suboxone", "Fentanyl") 
+#Interested in seeing how prescription opioid prices have increased through time (Muhire's plot) 
+most_abused_drugs
+```
+  + Now, let's take a look at the most abused drugs in America
+  
+    + This list of drugs involves drugs that are over prescribed, highly addictive, and/or frequently used as illicit street drugs
+    
+      + Benzodiazepines
+    
+      + Central nervous system depressants
+    
+         + Nembutal
+      
+          + Valium: used to treat anxiety disorders, abused along with alcohol or other depressants
+      
+          + Xanax: frequently referenced in "trap music"
+      
+         + Suboxone: a popular street drug, most popular illicit drug bought and sold in jails and prisons--often smuggled
+    
+      + Stimulants
+    
+        + Dexedrine
+      
+        + Ritalin: commonly abused by college students
+      
+        + Concerta
+      
+        + Adderall: commonly abused by college students
+  
+  + Opioids
+    
+       + Duragesic
+      
+          + Fentanyl is Heroin's synthetic cousin. Synthetic Fentanyl (combined with heroin) is more addictive and deadlier than heroin. According to the CDC, 100 times more potent than morphine. Synthetic Fentanyl is a popular street drug driving heroin overdose deaths in the US.
+        
+      + Vicodin
+      
+      + OxyContin
+      
+      + Opana
+      
+      + Darvon
+      
+      + Dilaudid
+      
+      + Demerol 
+      
+      + Lomotil
+      
+      + Percocet: crushed into power and snorted (like cocaine) for a high. commonly referenced in trap music
+      
+    + Important Facts & Figures about Opioid Epidemic
+  
+      + Public Health threat. 
+    
+      + 2 million Americans abused or dependent, 1000+ ER visits daily. 78 deaths daily. (2014)
+      
+      + Causes of Epidemic: Practitioners were urged to treat pain aggressively (without the tools and training), pharmaceutical companies marketing prescription opioids to doctors.
+      
+      + 259 million opioid prescriptions in 2012, according to the CDC. An increase in 400% since 1999.
+      + Prescription opioids account for 1/2 of opioid deaths. Considered gateway drugs for heroin
+      
+      + Four in five Heroin Users used prescription opioids before heroin.
+      
+      + Highly addictive. Other opioids include morphine, codeine cough syrup (know as "lean", "purple drank", "Sizzurp", and "syrup".
+      
+  + Something to think about
+  
+    + The pop legends Michael Jackson, Whitney Houston and Prince each died with with opioids (painkillers) and/or benzodiazepines (anti anxiety) in their systems. 
+    
+    + "The gods of pop music, indestructible in song, died taking the same drugs that everyone takes." Chris Richards of The Washington Post
+      
+  + References
+  
+    + https://www.drugabuse.gov/drugs-abuse/prescription-drugs-cold-medicines
+    
+    + https://www.marylandaddictionrecovery.com/top-10-most-abused-prescription-drugs
+    
+    + https://newlifehouse.com/top-10-commonly-abused-prescription-medications/
+    
+    + https://www.cbsnews.com/news/mixing-opioids-oxycodone-and-popular-sedatives-xanax-may-be-deadly/
+    + https://www.washingtonpost.com/lifestyle/style/soft-smooth-and-steady-how-xanax-turned-american-music-into-pill-pop/2017/04/19/535a44de-1955-11e7-bcc2-7d1a0973e7b2_story.html?utm_term
+    
+##### Anecdotal or Commonly Discussed in Popular Culture
+
+```{r Popular Culture, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+most_popular_drugs = c("Viagra", "Lipitor", "Xanax", "Celebrex", "Prozac", "Crestor", "Nexium", "Lisinopril", "Zoloft", "Abilify", "Prilosec", "Percocet", "Vicodin", "Zocor")
+most_popular_drugs
+```
+  + Finally, we investigate "popular" drugs: pharmaceutical drugs that people we know use, ones that we see commercials for, and/or commonly discussed in popular culture
+  
+  + The main protagonist on House, M.D. was addicted to Vicodin. FDA is considering banning the drug. 400 people overdose and die each year. People take it as a strong Tylenol or pain-killer.
+  + Zocor (simvastatin): cholesterol lowering drug
+
+  + Relationship between "pill-pop" and American music
+  
+    + https://www.washingtonpost.com/lifestyle/style/soft-smooth-and-steady-how-xanax-turned-american-music-into-pill-pop/2017/04/19/535a44de-1955-11e7-bcc2-7d1a0973e7b2_story.html
+    
+  + Reference: https://www.forbes.com/2010/05/11/narcotic-painkiller-vicodin-business-healthcare-popular-drugs.html#212b328b787f
+
+##### Comparing Mean Average Price per Tablet for each Drug Group
+  + We compared pricing of the drugs classified in each category.
+  
+  + The Most Abused Drugs had the lowest mean of average price per tablet of $5.22.
+  
+  + The Most Advertised and the Most Popular Drugs have similar means of average price per tablet of $25.78 and $22.86, respectively. 
+  
+  + The Most Prescribed Drugs have the highest mean of average price per tablet of $259.26. 
+  
+  + These results are particularly interesting. 
+  
+      + The most abused drugs are relatively inexpensive compared to others. This gives patients greater access to highly addictive prescriptions, including painkillers. This may be a driving force of prescription drug abuse; cheap and highly addictive are fatal combinations for drug dependence.
+      
+      + The most prescribed drugs are notably more expensive. The mean is skewed by the Hepatitis C drug, Harvoni. Harvoni has a median average price of $1,093.83. Excluding Harvoni results in a mean of average price per tablet of $21.71 for most prescribed drugs, which is on-par with most popular and most advertised drugs. 
+      
+```{r, echo = FALSE, results = FALSE, warning = FALSE, message = FALSE}
+mean_price_abused = final_dataset %>%
+  filter(!is.na(avg_price)) %>%
+  filter(trade_name %in% most_abused_drugs) %>%
+  summarize(mean_price = mean(avg_price))
+#mean average price of per tablet of most abused drugs is $5.22
+
+mean_price_popular = final_dataset %>%
+  filter(!is.na(avg_price)) %>%
+  filter(trade_name %in% most_popular_drugs) %>%
+  summarize(mean_price = mean(avg_price))
+#mean average price of per tablet of most abused drugs is $22.86
+
+mean_price_prescribed = final_dataset %>%
+  filter(!is.na(avg_price)) %>%
+  filter(trade_name %in% top_prescribed_drugs_sales) %>%
+  filter(trade_name != "Harvoni") %>%
+  summarize(mean_price = mean(avg_price))
+#mean average price of per tablet of most abused drugs is $259.26
+#mean average price of per tablet of most abused drugs is $21.71 when excluding Harvoni, an extreme outlier. 
+
+mean_price_advertised = final_dataset %>%
+  filter(!is.na(avg_price)) %>%
+  filter(trade_name %in% top_advertising_cost) %>%
+  summarize(mean_price = mean(avg_price))
+#mean average price of per tablet of most abused drugs is $25.78
+```
+
+##### Boxplots of each category of drugs
+
+```{r Plotly Formatting, echo = FALSE, warning = FALSE, message = FALSE}
+#plotly formatting
+f = list(
+  family = "Courier New, monospace",
+  size = 18,
+  color = "#7f7f7f"
+)
+trade_name_axis = list(
+  title = "Trade Name",
+  titlefont = f
+)
+avg_price_axis = list(
+  title = "Average Drug Price",
+  titlefont = f
+)
+```
+
+##### The Distribution of Average Price for Most Advertised Drugs, Ordered by Descending Advertising Spending
+
+  + Elliquis had the highest advertising spending of $174 million, yet had the lowest median of average drug price of $5.28. 
+  
+  + Xeljanz had the highest median of average drug price of $43.14, among this group. Also, Xeljanz had the most variability in this group.
+  
+```{r Most Advertised plots, warning = FALSE, message = FALSE}
+#shiny application : most advertised (by spending) vs. most abused vs. most prescribed (by sales)
+#another shiny application: give list of all "most" drugs and can see boxplot for that specific drug
+final_dataset %>%
+  filter(!is.na(avg_price)) %>%
+  filter(trade_name %in% top_advertising_cost) %>%
+  ungroup() %>%
+  mutate(trade_name = factor(trade_name)) %>%
+  mutate(trade_name_new = fct_relevel(trade_name, c("Eliquis", "Xeljanz", "Cialis", "Invokana", "Latuda","Viagra"))) %>%
+   group_by(trade_name) %>% 
+  plot_ly(x = ~trade_name_new, y = ~avg_price, type = "box", color = ~trade_name, colors = "Set3") %>%
+  layout(title = "Distribution of Average Price for Most Advertised Drugs, 
+         Ordered by Descending Advertising Spending", xaxis = trade_name_axis, yaxis = avg_price_axis)
+```
+
+##### The Distribution of Average Price for Most Popular Drugs
+
+  + Viagra, which treats erectile dysfunction (acute), had the highest median of average price of $35.47. 
+  
+  + Xanax, which treats anxiety and panic attack (acute), had the lowest median of average price of $3.41.
+  
+  + There is no clear trend between disease type (acute vs. chronic) and disease condition (i.e: psychiatric drugs vs. cardiovascular).
+  
+```{r Most Popular, warning = FALSE, message = FALSE}
+final_dataset %>%
+  filter(!is.na(avg_price)) %>%
+  filter(trade_name %in% most_popular_drugs) %>%
+  plot_ly(y = ~avg_price, type = "box", color = ~trade_name, colors = "Set3") %>%
+  layout(title = "Distribution of Average Price for Popular Drugs", xaxis = trade_name_axis, yaxis = avg_price_axis)
+```
+
+##### The Distribution of Average Price for Most Abused Drugs 
+
+  + Ambien and Lunesta, which both treat sleep disorders, have the highest median of average drug price of $13.45 and $11.94 respectively. Focalin and Ritalin, which both treat ADHD, have the lowest median of average drug price of $0.97 each. 
+  
+```{r Case Study Analysis, warning = FALSE, message = FALSE}
+final_dataset %>%
+  filter(!is.na(avg_price)) %>%
+  filter(trade_name %in% most_abused_drugs) %>%
+  group_by(trade_name) %>% 
+  plot_ly(y = ~avg_price, type = "box", color = ~trade_name, colors = "Set3") %>%
+  layout(title = "Distribution of Average Price for Most Abused Drugs", xaxis = trade_name_axis, yaxis = avg_price_axis)
+```
+
+##### The Distribution of Average Price for Most Prescribed Drugs Ordered by Descending Prescription Rates
+
+  + Harvoni in the most expensive of the most prescribed drugs. Why is a drug that treats Hepatitis C so expensive?
+  
+  + Some explanation from [HuffPost](https://www.huffingtonpost.com/entry/why-hepatitis-c-drugs-are-expensive_us_5642840be4b08cda34868c8a): "There are an estimated three million Americans with hepatitis C; most of them boomer-aged, and most of them don’t know they have it. For 75 to 85 percent of those people, infection will lead to chronic hepatitis-related diseases like liver cancer, cirrhosis or liver disease. In fact, hepatitis C is the most common reason people have liver transplants in the U.S. And the new, better medications that could cure them of this potentially fatal disease are so expensive that government safety nets and private insurance companies are struggling to provide coverage to as many people who need them." 
+  
+    + Influences of pricing [Investopedia](https://www.investopedia.com/articles/investing/020316/how-pharmaceutical-companies-price-their-drugs.asp): uniqueness of the drug, how many other drugs are already available that treat the same condition, competition, have the potential to change the current practice of medicine used to treat the conditions the drugs target, extend or even save lives. 
+  
+  + If we exclude Harvoni, we can better see the box plots of the other drugs.
+  
+    + As prescription rates decrease, average drug price per tablet does not display any discernible trend.
+
+#
+#
+#
+
+*Limitations*
+
+A number of limitations affected our exploratory analysis.  
+
+1.  Because of the way subsetted/joined the datasets, there was a substantial amount of lost data, which could impact our findings. 
+
+2.  Additionally, the dataset used to classify diseases as either acute or chronic may not have been comprehensive which may have resulted in misclassification of disease type. 
+
+3.  Lastly, the validity of the two sample independent t-tests may be compromised because the average price variable violates the normality assumption.
+
+For our complete code, click [here](https://github.com/josiealford14/p8105_final_jmmm.git)

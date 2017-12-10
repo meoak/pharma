@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+
+
+
+<title></title>
+
+<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/font-awesome-4.5.0/css/font-awesome.min.css" rel="stylesheet" />
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+</head>
+
+<body>
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+  height: auto;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+</style>
+
+
+<style type="text/css">
+/* padding for bootstrap navbar */
+body {
+  padding-top: 51px;
+  padding-bottom: 40px;
+}
+/* offset scroll position for anchor links (for fixed navbar)  */
+.section h1 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+
+.section h2 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h3 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h4 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h5 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h6 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+</style>
+
+<script>
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.parent().addClass('active');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+});
+</script>
+
+
+<div class="container-fluid main-container">
+
+<!-- tabsets -->
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+</script>
+
+<!-- code folding -->
+
+
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">Factors Influencing Drug Prices</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://josiealford14.github.io/dashboard_pharma/dashboard_pharma.html">Dashboard</a>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Methods
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="data.html">Data</a>
+    </li>
+    <li>
+      <a href="methods.html">Data Wrangling</a>
+    </li>
+    <li>
+      <a href="rpackage.html">R Packages</a>
+    </li>
+  </ul>
+</li>
+<li>
+  <a href="analysis.html">Analysis</a>
+</li>
+<li>
+  <a href="conclusion.html">Conclusion</a>
+</li>
+<li>
+  <a href="https://github.com/josiealford14/p8105_final_jmmm.git">
+    <span class="fa fa-github fa-lg"></span>
+     
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div class="fluid-row" id="header">
+
+
+
+
+</div>
+
+
+<p><strong>Conclusion</strong></p>
+<p>In summary, we observed a clear increasing trend in the overall average drug price, and, in particular, we observed a notable increase between 2014 and 2015. We suspect that this increase is related to the implementation of the Affordable Care Act (ACA) in 2015.</p>
+<p>However, our exploration of potential variables contributing to prescription drug prices only told us that we would have to narrow our scope. In other words, a more detailed analysis of a single potential contributing factor would likely yield more promising analyses.</p>
+<p><strong>Future Research</strong></p>
+<p>While no observable relationship was found between prescription drug price and NIH funding, we did notice that, while on an upward trend up until 2016, NIH funding for disease research has been declining since.</p>
+<p>Another facet of funding that could be investigated further is its relationship to disease prevalence. It may be assumed that an increase in funding for a particular disease would be reflective of an increased prevalence of that disease. However, this was not the case in our exploratory analysis. We found neither a direct nor inverse relationship between funding and prevalence.</p>
+<p>Now, while a relationship was not observed, this is not to say that one does not exist. We suspect that various public health initiatives propelled funding for specific diseases such as obesity and cancer.</p>
+<p>Additional avenues for future research include:</p>
+<ul>
+<li><p>the influence of popular culture in prescription drug abuse;</p></li>
+<li><p>the relationship between pricing of opioids and benzodiazepines and addiction rates; and</p></li>
+<li><p>analysis similar to ours that includes drugs in solution form.</p></li>
+</ul>
+<div style="text-align:right">
+<img src= "https://media.giphy.com/media/5SWGOoYJ5svfi/giphy.gif"width="300" height="200"/>
+</div>
+<div id="references" class="section level3">
+<h3>References</h3>
+<ul>
+<li><p><a href="https://www.drugabuse.gov/drugs-abuse/prescription-drugs-cold-medicines" class="uri">https://www.drugabuse.gov/drugs-abuse/prescription-drugs-cold-medicines</a></p></li>
+<li><p><a href="https://www.marylandaddictionrecovery.com/top-10-most-abused-prescription-drugs" class="uri">https://www.marylandaddictionrecovery.com/top-10-most-abused-prescription-drugs</a></p></li>
+<li><p><a href="https://newlifehouse.com/top-10-commonly-abused-prescription-medications/" class="uri">https://newlifehouse.com/top-10-commonly-abused-prescription-medications/</a></p></li>
+<li><p><a href="https://www.cbsnews.com/news/mixing-opioids-oxycodone-and-popular-sedatives-xanax-may-be-deadly/" class="uri">https://www.cbsnews.com/news/mixing-opioids-oxycodone-and-popular-sedatives-xanax-may-be-deadly/</a></p></li>
+<li><p><a href="https://www.washingtonpost.com/lifestyle/style/soft-smooth-and-steady-how-xanax-turned-american-music-into-pill-pop/2017/04/19/535a44de-1955-11e7-bcc2-7d1a0973e7b2_story.html?utm_term" class="uri">https://www.washingtonpost.com/lifestyle/style/soft-smooth-and-steady-how-xanax-turned-american-music-into-pill-pop/2017/04/19/535a44de-1955-11e7-bcc2-7d1a0973e7b2_story.html?utm_term</a></p></li>
+<li><p><a href="https://www.washingtonpost.com/lifestyle/style/soft-smooth-and-steady-how-xanax-turned-american-music-into-pill-pop/2017/04/19/535a44de-1955-11e7-bcc2-7d1a0973e7b2_story.html" class="uri">https://www.washingtonpost.com/lifestyle/style/soft-smooth-and-steady-how-xanax-turned-american-music-into-pill-pop/2017/04/19/535a44de-1955-11e7-bcc2-7d1a0973e7b2_story.html</a></p></li>
+<li><p><a href="https://www.forbes.com/2010/05/11/narcotic-painkiller-vicodin-business-healthcare-popular-drugs.html#212b328b787f" class="uri">https://www.forbes.com/2010/05/11/narcotic-painkiller-vicodin-business-healthcare-popular-drugs.html#212b328b787f</a></p></li>
+<li><p><a href="https://www.statista.com/statistics/639356/tv-advertise-drugs-usa/" class="uri">https://www.statista.com/statistics/639356/tv-advertise-drugs-usa/</a></p></li>
+<li><p><a href="https://www.statista.com/statistics/258010/top-branded-drugs-based-on-retail-sales-in-the-us/" class="uri">https://www.statista.com/statistics/258010/top-branded-drugs-based-on-retail-sales-in-the-us/</a></p></li>
+<li><p><a href="https://www.nytimes.com/2017/09/23/sunday-review/prescription-drugs-prices.html" class="uri">https://www.nytimes.com/2017/09/23/sunday-review/prescription-drugs-prices.html</a></p></li>
+<li><p><a href="https://www.kff.org/slideshow/public-opinion-on-prescription-drugs-and-their-prices/" class="uri">https://www.kff.org/slideshow/public-opinion-on-prescription-drugs-and-their-prices/</a></p></li>
+</ul>
+</div>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

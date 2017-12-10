@@ -1,0 +1,56 @@
+---
+title: ""
+output: 
+  html_document:
+    code_folding: null
+---
+
+**Conclusion**
+
+  In summary, we observed a clear increasing trend in the overall average drug price, and, in particular, we observed a notable increase between 2014 and 2015. We suspect that this increase is related to the implementation of the Affordable Care Act (ACA) in 2015. 
+  
+  However, our exploration of potential variables contributing to prescription drug prices only told us that we would have to narrow our scope.  In other words, a more detailed analysis of a single potential contributing factor would likely yield more promising analyses.
+
+
+**Future Research**
+
+  While no observable relationship was found between prescription drug price and NIH funding, we did notice that, while on an upward trend up until 2016, NIH funding for disease research has been declining since.
+  
+  Another facet of funding that could be investigated further is its relationship to disease prevalence.  It may be assumed that an increase in funding for a particular disease would be reflective of an increased prevalence of that disease.  However, this was not the case in our exploratory analysis.  We found neither a direct nor inverse relationship between funding and prevalence.  
+
+  Now, while a relationship was not observed, this is not to say that one does not exist.  We suspect that various public health initiatives propelled funding for specific diseases such as obesity and cancer.
+
+Additional avenues for future research include:
+
+ + the influence of popular culture in prescription drug abuse;
+ 
+ + the relationship between pricing of opioids and benzodiazepines and addiction rates; and
+ 
+ + analysis similar to ours that includes drugs in solution form.
+ 
+ 
+<div style="text-align:right"><img src= "https://media.giphy.com/media/5SWGOoYJ5svfi/giphy.gif"width="300" height="200"/></div>
+
+
+### References 
+  + https://www.drugabuse.gov/drugs-abuse/prescription-drugs-cold-medicines
+    
+  + https://www.marylandaddictionrecovery.com/top-10-most-abused-prescription-drugs
+    
+  + https://newlifehouse.com/top-10-commonly-abused-prescription-medications/
+    
+  + https://www.cbsnews.com/news/mixing-opioids-oxycodone-and-popular-sedatives-xanax-may-be-deadly/
+  
+  + https://www.washingtonpost.com/lifestyle/style/soft-smooth-and-steady-how-xanax-turned-american-music-into-pill-pop/2017/04/19/535a44de-1955-11e7-bcc2-7d1a0973e7b2_story.html?utm_term
+  
+  + https://www.washingtonpost.com/lifestyle/style/soft-smooth-and-steady-how-xanax-turned-american-music-into-pill-pop/2017/04/19/535a44de-1955-11e7-bcc2-7d1a0973e7b2_story.html
+    
+ + https://www.forbes.com/2010/05/11/narcotic-painkiller-vicodin-business-healthcare-popular-drugs.html#212b328b787f
+ 
+ + https://www.statista.com/statistics/639356/tv-advertise-drugs-usa/
+ 
+ + https://www.statista.com/statistics/258010/top-branded-drugs-based-on-retail-sales-in-the-us/
+ 
+  + https://www.nytimes.com/2017/09/23/sunday-review/prescription-drugs-prices.html
+ 
+ + https://www.kff.org/slideshow/public-opinion-on-prescription-drugs-and-their-prices/

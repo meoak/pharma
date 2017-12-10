@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+
+
+
+<title></title>
+
+<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/font-awesome-4.5.0/css/font-awesome.min.css" rel="stylesheet" />
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+</head>
+
+<body>
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+  height: auto;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+</style>
+
+
+<style type="text/css">
+/* padding for bootstrap navbar */
+body {
+  padding-top: 51px;
+  padding-bottom: 40px;
+}
+/* offset scroll position for anchor links (for fixed navbar)  */
+.section h1 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+
+.section h2 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h3 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h4 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h5 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h6 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+</style>
+
+<script>
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.parent().addClass('active');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+});
+</script>
+
+
+<div class="container-fluid main-container">
+
+<!-- tabsets -->
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+</script>
+
+<!-- code folding -->
+
+
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">Factors Influencing Drug Prices</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://josiealford14.github.io/dashboard_pharma/dashboard_pharma.html">Dashboard</a>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Methods
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="data.html">Data</a>
+    </li>
+    <li>
+      <a href="methods.html">Data Wrangling</a>
+    </li>
+    <li>
+      <a href="rpackage.html">R Packages</a>
+    </li>
+  </ul>
+</li>
+<li>
+  <a href="analysis.html">Analysis</a>
+</li>
+<li>
+  <a href="conclusion.html">Conclusion</a>
+</li>
+<li>
+  <a href="https://github.com/josiealford14/p8105_final_jmmm.git">
+    <span class="fa fa-github fa-lg"></span>
+     
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div class="fluid-row" id="header">
+
+
+
+
+</div>
+
+
+<div id="section" class="section level1">
+<h1></h1>
+</div>
+<div id="section-1" class="section level1">
+<h1></h1>
+<div id="the-data" class="section level3">
+<h3><strong>The Data</strong></h3>
+<p><strong>FDA Orange Book</strong>: This contained 4 datasets: patents, exclusivity, ingredients, and products.</p>
+<ul>
+<li><p>Patents: Contains patent number and expiration dates of FDA approved drugs.</p></li>
+<li><p>Exclusivity: Contains information on drugs that were granted exclusivity by the FDA. Exclusivity provides protection from new market competition for a short time.</p></li>
+<li><p>Ingredients: Contained information on the active ingredients in drugs.</p></li>
+<li><p>Products: Contained the trade name for the drug, the company that developed the drug, and whether the drug was brand or generic.</p></li>
+</ul>
+<p><strong>Drug Price</strong>: This dataset contained the prices paid by pharmacies to acquire the drug.</p>
+<p><strong>NIH Funding</strong>: Contained the NIH finding for disease research areas for 2013 to 2018 (estimated) and the prevalence of the disease.</p>
+<p><strong>Drug Disease</strong>: Dataset linking drugs was the disease that they treat.</p>
+</div>
+<div id="drug-price" class="section level3">
+<h3>Drug Price</h3>
+<ul>
+<li>Found <a href="https://data.medicaid.gov/resource/tau9-gfwr.cs">here</a></li>
+<li>It contains weekly drug prices from November 2013 to October 2017 recorded.</li>
+</ul>
+</div>
+<div id="nih-funding" class="section level3">
+<h3>NIH Funding</h3>
+<ul>
+<li>The NIH RCDC Report</li>
+<li>This dataset contains the annual support for various disease categories based on grants, contracts, and other funding mechanisms used across the National Institutes of Health (NIH). Prevalence and mortality data included in this dataset is from the National Center for Health Statistics (NCHS) at the Centers for Disease Control &amp; Prevention (CDC).</li>
+<li>Explore <a href="https://report.nih.gov/categorical_spending.aspx">here</a></li>
+</ul>
+</div>
+<div id="patents" class="section level3">
+<h3>Patents</h3>
+<ul>
+<li>The Patents <a href="https://www.fda.gov/Drugs/InformationOnDrugs/ucm129689.htm">dataset</a> from the FDA Orange Book</li>
+</ul>
+</div>
+<div id="products-ingredient-exclusivity" class="section level3">
+<h3>Products, Ingredient &amp; Exclusivity</h3>
+<ul>
+<li>The Products <a href="https://www.fda.gov/Drugs/InformationOnDrugs/ucm129689.htm">dataset</a> from the FDA Orange Book</li>
+</ul>
+</div>
+<div id="drugs-by-condition" class="section level3">
+<h3>Drugs By Condition</h3>
+<ul>
+<li>Scraping data on drugs per condition from <a href="https://www.centerwatch.com/drug-information/fda-approved-drugs/medical-conditions/A">this website</a></li>
+</ul>
+</div>
+<div id="chronic-diseases" class="section level3">
+<h3>Chronic Diseases</h3>
+<ul>
+<li>Scrapping data on chronic diseases from three websites.
+<ul>
+<li><a href="https://www.medicalschemes.com/medical_schemes_pmb/chronic_disease_list.htm">First</a></li>
+<li><a href="http://www.health24.com/Medical-schemes/PMB-and-chronic-disease/List-of-chronic-diseases-20120721">Second</a></li>
+<li><a href="https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/Chronic-Conditions/CC_Main.html">Third</a></li>
+</ul></li>
+</ul>
+</div>
+<div id="the-variables" class="section level3">
+<h3><strong>The Variables</strong></h3>
+<ul>
+<li><p>trade_name: the trade name of the drug</p></li>
+<li><p>drug_type: the drug type (B: Brand or G: Generic)</p></li>
+<li><p>otc: over the counter drug (Yes or No)</p></li>
+<li><p>pricing_unit: EA for each, GM for gram, and ML for milliliters</p></li>
+<li><p>year: the funding and pricing year</p></li>
+<li><p>avg_price: the average price for the particular year</p></li>
+<li><p>dose_form: the dose form (tablet, solution, solution injectable)</p></li>
+<li><p>route: route of administration (oral or IV)</p></li>
+<li><p>strength: the strength of the dose</p></li>
+<li><p>application_no: the FDA assigned number to the drug application.</p></li>
+<li><p>product_no: The FDA assigned number to identify the application products; used for joining datasets.</p></li>
+<li><p>approval_year: the year the patent was approved</p></li>
+<li><p>app_full: the full name of the company that developed the drug</p></li>
+<li><p>active_ingredient: the active ingredient</p></li>
+<li><p>ingredient: the active ingredients in a wide format; used for joining datasets</p></li>
+<li><p>patent_num: the patent number</p></li>
+<li><p>pediatric_exclusivity_granted: yes or no</p></li>
+<li><p>year_pat_expires: the patent expiration year</p></li>
+<li><p>year_excl_expires: the exclusivity expiration year</p></li>
+<li><p>disease: the disease the drug treats</p></li>
+<li><p>prevalence: the disease prevalence for 2015</p></li>
+<li><p>US_mortality_2015: the disease mortality rate</p></li>
+<li><p>funding: the NIH funding for disease research in millions</p></li>
+<li><p>disease_type: the type disease (acute or chronic)</p></li>
+</ul>
+</div>
+</div>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

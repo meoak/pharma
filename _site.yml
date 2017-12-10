@@ -1,0 +1,28 @@
+name: Factors Influencing Drug Prices
+output_dir: .
+navbar:
+  title: Factors Influencing Drug Prices
+  right:
+  - text: Dashboard
+    href: https://josiealford14.github.io/dashboard_pharma/dashboard_pharma.html
+  - text: Methods
+    menu:
+    - text: Data
+      href: data.html
+    - text: Data Wrangling
+      href: methods.html
+    - text: R Packages
+      href: rpackage.html
+  - text: Analysis
+    href: analysis.html
+  - text: Conclusion
+    href: conclusion.html
+  - icon: fa-github fa-lg
+    href: https://github.com/josiealford14/p8105_final_jmmm.git
+output:
+  html_document:
+    theme: cosmo
+    code_folding: hide
+    lib_dir: site_libs
+    self_contained: no
+
